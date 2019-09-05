@@ -35,9 +35,8 @@ func (s *static) Commands() []cli.Command {
 }
 
 func (s *static) Handler() plugin.Handler {
+	fs := http.FileServer(http.Dir(s.dir))
 	return func(h http.Handler) http.Handler {
-		fs := http.FileServer(http.Dir(s.dir))
-
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if _, err := os.Stat(s.dir + r.RequestURI); os.IsNotExist(err) {
 				for _, service := range s.services {
