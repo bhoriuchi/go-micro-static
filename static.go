@@ -12,6 +12,7 @@ import (
 
 type static struct {
 	dir      string
+	fs       http.Handler
 	services []string
 }
 
@@ -35,7 +36,6 @@ func (s *static) Commands() []cli.Command {
 }
 
 func (s *static) Handler() plugin.Handler {
-	fs := http.FileServer(http.Dir(s.dir))
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if _, err := os.Stat(s.dir + r.RequestURI); os.IsNotExist(err) {
@@ -47,9 +47,9 @@ func (s *static) Handler() plugin.Handler {
 					}
 				}
 
-				http.StripPrefix(r.RequestURI, fs).ServeHTTP(w, r)
+				http.StripPrefix(r.RequestURI, s.fs).ServeHTTP(w, r)
 			} else {
-				fs.ServeHTTP(w, r)
+				s.fs.ServeHTTP(w, r)
 			}
 		})
 	}
@@ -62,6 +62,7 @@ func (s *static) Init(ctx *cli.Context) error {
 		dir = "html"
 	}
 	s.dir = dir
+	s.fs = http.FileServer(http.Dir(s.dir))
 	return nil
 }
 
