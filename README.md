@@ -10,7 +10,7 @@ package main
 
 import (
 	"github.com/micro/micro/plugin"
-	"github.com/bhoriuchi/go-micro-static"
+	static "github.com/bhoriuchi/go-micro-static"
 )
 
 func init() {
