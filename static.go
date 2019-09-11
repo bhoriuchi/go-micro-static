@@ -2,6 +2,7 @@ package static
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -9,6 +10,8 @@ import (
 	"github.com/micro/cli"
 	"github.com/micro/micro/plugin"
 )
+
+var debugging = false
 
 type static struct {
 	dir      string
@@ -28,6 +31,19 @@ func (s *static) Flags() []cli.Flag {
 			Usage:  "Directory to serve static from",
 			EnvVar: "STATIC_DIR",
 		},
+		cli.BoolFlag{
+			Name:        "static_debug",
+			Usage:       "Log debug output",
+			EnvVar:      "STATIC_DEBUG",
+			Destination: &debugging,
+		},
+	}
+}
+
+// simple debugger function
+func debug(fmtstr string, args ...interface{}) {
+	if debugging {
+		log.Printf(fmtstr, args...)
 	}
 }
 
@@ -38,25 +54,31 @@ func (s *static) Commands() []cli.Command {
 func (s *static) Handler() plugin.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, err := os.Stat(s.dir + r.RequestURI); os.IsNotExist(err) {
-				for _, service := range s.services {
-					prefix := fmt.Sprintf("/%s", strings.Trim(service, "/"))
-					if strings.HasPrefix(r.RequestURI, prefix) {
-						h.ServeHTTP(w, r)
-						return
-					}
+			for _, service := range s.services {
+				prefix := fmt.Sprintf("/%s", strings.Trim(service, "/"))
+				uri := fmt.Sprintf("/%s", strings.Trim(r.RequestURI, "/"))
+				if strings.HasPrefix(uri, prefix) {
+					debug("Handled %s with micro handler", r.RequestURI)
+					h.ServeHTTP(w, r)
+					return
 				}
-
-				http.StripPrefix(r.RequestURI, s.fs).ServeHTTP(w, r)
-			} else {
-				s.fs.ServeHTTP(w, r)
 			}
+
+			if _, err := os.Stat(s.dir + r.RequestURI); os.IsNotExist(err) {
+				debug("Handled %s with strip prefix handler", r.RequestURI)
+				http.StripPrefix(r.RequestURI, s.fs).ServeHTTP(w, r)
+				return
+			}
+
+			debug("Handled %s with file server", r.RequestURI)
+			s.fs.ServeHTTP(w, r)
 		})
 	}
 }
 
 func (s *static) Init(ctx *cli.Context) error {
 	s.services = ctx.StringSlice("static_service")
+	debug("Ignoring static content for requests on services %v", s.services)
 	dir := ctx.String("static_dir")
 	if len(dir) == 0 {
 		dir = "html"
